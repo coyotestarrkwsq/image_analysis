@@ -57,9 +57,11 @@ def main():
     
     image_path = "/home/wangsq/data_set/DRIVE/training/images/*.tif" 
     seg_path = "/home/wangsq/data_set/DRIVE/training/1st_manual/*.gif"
-    image_data_path = glob.glob(image_path)
-    seg_data_path = glob.glob(seg_path)
-    save_path = '/home/wangsq/data_set/DRIVE/training/full_aug_data/'
+    image_data_path = sorted(glob.glob(image_path))
+    seg_data_path = sorted(glob.glob(seg_path))
+    save_path = '/home/wangsq/data_set/DRIVE/training/final_full_aug_no_scale_data/'
+    file = open(save_path + 'train_pair.txt', 'w')
+
     
     #r_mean = np.mean([np.mean(misc.imread(image)[:,:,0]) for image in data_path])
     #g_mean = np.mean([np.mean(misc.imread(image)[:,:,1]) for image in data_path])
@@ -72,9 +74,55 @@ def main():
         filepath, filename = os.path.split(im)
         im_name, exts = os.path.splitext(filename)
 
+
         filepath, filename = os.path.split(seg)
         seg_name, exts = os.path.splitext(filename)
 
+
+
+
+
+        for i in range(0,16):
+            angle = i*22.5
+            rotate_im = rotate(image, angle)
+            misc.imsave(save_path + im_name + '_rotate' + str(angle) + '.png', rotate_im)
+            file.write(im_name + '_rotate' + str(angle) + '.png ')
+
+
+            rotate_seg = rotate(segm, angle)
+            misc.imsave(save_path + seg_name + '_rotate' + str(angle) + '.jpeg', rotate_seg)
+            file.write(seg_name + '_rotate' + str(angle) + '.jpeg' + '\n')
+
+
+            flip_im = np.flipud(rotate_im)
+            misc.imsave(save_path + im_name + '_rotate' + str(angle) + 'fup.png', flip_im)
+            file.write(im_name + '_rotate' + str(angle) + 'fup.png ')
+
+            flip_seg = np.flipud(rotate_seg)
+            misc.imsave(save_path + seg_name + '_rotate' + str(angle) + 'fup.jpeg', flip_seg)
+            file.write(seg_name + '_rotate' + str(angle) + 'fup.jpeg' + '\n')
+
+
+
+            flip_im = np.fliplr(rotate_im)
+            misc.imsave(save_path + im_name + '_rotate' + str(angle) + 'flr.png', flip_im)
+            file.write(im_name + '_rotate' + str(angle) + 'flr.png ')
+
+            flip_seg = np.fliplr(rotate_seg)
+            misc.imsave(save_path + seg_name + '_rotate' + str(angle) + 'flr.jpeg', flip_seg)
+            file.write(seg_name + '_rotate' + str(angle) + 'flr.jpeg' + '\n')
+
+       
+
+
+
+
+if __name__=='__main__':
+
+    main()
+
+
+'''
         enlarge_im = scale(image, 'enlarge')
 
         enlarge_seg = scale(segm, 'enlarge')
@@ -92,21 +140,4 @@ def main():
         shrink_seg = scale(segm, 'shrink')
         misc.imsave(save_path + seg_name + '_shrink.jpeg', shrink_seg)
         
-
-
-
-        for i in range(1,16):
-            angle = i*22.5
-            rotate_im = rotate(image, angle)
-            misc.imsave(save_path + im_name + '_rotate' + str(angle) + '.tif', rotate_im)
-
-            rotate_seg = rotate(segm, angle)
-            misc.imsave(save_path + seg_name + '_rotate' + str(angle) + '.jpeg', rotate_seg)
-       
-
-
-
-
-if __name__=='__main__':
-
-    main()
+'''
