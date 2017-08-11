@@ -14,6 +14,7 @@ def mean_subtract(array, r_mean, g_mean, b_mean):
     return array
 
 def crop(image):
+    #starty:endy, startx:endx
     return image[30:566, 10:546]
 
 def padding(image, pad_height_l, pad_height_r, pad_length_l, pad_length_r):
