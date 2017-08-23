@@ -1,27 +1,25 @@
 #!/usr/bin/env python
 
-""" example usage: for i in `echo ~/data_set/mitos14/A*/frames/x40/`; do ./tif_to_jpg.py -i $i \
--s ~/Downloads/TUPAC16/data/01/jpg/; done """
+""" example usage: ./tif_to_jpg.py -i ~/Downloads/TUPAC16/data/01/test.tiff \
+-s ~/Downloads/TUPAC16/data/01/jpg/ """
 
 import scipy.misc as misc
-import glob
 import argparse
 import sys
 import os
 
 def main(_):
     
-    image_path = glob.glob(FLAGS.image_path+"*tiff")
     save_path = FLAGS.save_path
     
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     
-    for image in image_path:
-        filepath, filename = os.path.split(image)
-        filtername, exts = os.path.splitext(filename)
-        arr = misc.imread(image)
-        misc.imsave(save_path + filtername + '.jpg', arr)
+    filepath, filename = os.path.split(FLAGS.image)
+    filtername, exts = os.path.splitext(filename)    
+    
+    arr = misc.imread(FLAGS.image)
+    misc.imsave(save_path + filtername + '.jpg', arr)
 
 
 
@@ -31,8 +29,8 @@ if __name__=='__main__':
     parser.add_argument(
             '-i',
             required = 'True',
-            dest = 'image_path',
-            help = 'path of image files'
+            dest = 'image',
+            help = 'image files'
     )
 
     parser.add_argument(
@@ -44,4 +42,3 @@ if __name__=='__main__':
 
     FLAGS = parser.parse_args()
     main(sys.argv[1:])
-

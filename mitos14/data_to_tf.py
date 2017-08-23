@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+
+"""example usage: \
+data_to_tf.py -i ~/data_set/mitos14/validation/ -o ~/data_set/mitos14/validation/val.record"""
+
 import tensorflow as tf
 import csv
 import glob
@@ -5,17 +10,28 @@ from object_detection.utils import dataset_util
 import argparse
 import os
 import scipy.misc as misc
+import sys
 
+def check_min_dim(coord, dim):
+  if coord < 0:
+    return float(0)
+  else:
+    return coord/dim
+
+def check_max_dim(coord, dim):
+  if coord > dim:
+    return float(1)
+  else:
+    return coord/dim
 
 def create_tf_example(example):
-  print example
 
   filepath, filename = os.path.split(example)
   filtername, exts = os.path.splitext(filename)
 
   image = misc.imread(example)
-  height = image.shape[1]# Image height
-  width = image.shape[0] # Image width
+  height = image.shape[0]# Image height
+  width = image.shape[1] # Image width
   
   mitosis = filepath + '/' + filtername + '_mitosis.csv'
   with open(mitosis, 'rb') as csvfile:
@@ -42,11 +58,18 @@ def create_tf_example(example):
 
 
   for coord in mitosis:
-    xmin = (float(coord[0])-32)/width
-    ymin = (float(coord[1])-32)/height
+    xmin = (float(coord[0])-32)
+    xmin = check_min_dim(xmin, width)
 
-    xmax = (float(coord[0])+32)/width
-    ymax = (float(coord[1])+32)/height
+    ymin = (float(coord[1])-32)
+    ymin = check_min_dim(ymin, height)
+
+    xmax = (float(coord[0])+32)
+    xmax = check_max_dim(xmax, width)
+
+    ymax = (float(coord[1])+32)
+    ymax = check_max_dim(ymax, height)
+
 
     xmins.append(xmin)
     xmaxs.append(xmax)
@@ -59,11 +82,18 @@ def create_tf_example(example):
 
 
   for coord in non_mitosis:
-    xmin = (float(coord[0])-32)/width
-    ymin = (float(coord[1])-32)/height
+    xmin = (float(coord[0])-32)
+    xmin = check_min_dim(xmin, width)
 
-    xmax = (float(coord[0])+32)/width
-    ymax = (float(coord[1])+32)/height
+    ymin = (float(coord[1])-32)
+    ymin = check_min_dim(ymin, height)
+
+    xmax = (float(coord[0])+32)
+    xmax = check_max_dim(xmax, width)
+
+    ymax = (float(coord[1])+32)
+    ymax = check_max_dim(ymax, height)
+
 
     xmins.append(xmin)
     xmaxs.append(xmax)
@@ -119,7 +149,7 @@ if __name__ == '__main__':
         '-o',
         required = 'True',
         dest = 'save_path',
-        help = 'save path'
+        help = 'save path and file name'
     )
 
   FLAGS = parser.parse_args()

@@ -22,8 +22,8 @@ class DataToTfTest(tf.test.TestCase):
 
 
    
-    height = 1539
-    width = 1376
+    height = 1376
+    width = 1539
     image_file_name = 'A03_00Aa.jpg'
     
     xmin1 = (float(1094)-32)/width
@@ -36,7 +36,7 @@ class DataToTfTest(tf.test.TestCase):
     ymin2 = (float(542)-32)/height
     ymax2 = (float(542)+32)/height
 
-    examples = '/home/wangsq/image_analysis/tupac16/test/A03_00Aa.jpg'
+    examples = '/home/wangsq/image_analysis/mitos14/test/A03_00Aa.jpg'
 
     example = create_tf_example(examples)
 
