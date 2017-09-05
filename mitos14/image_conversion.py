@@ -19,7 +19,7 @@ def main(_):
     filtername, exts = os.path.splitext(filename)    
     
     arr = misc.imread(FLAGS.image)
-    misc.imsave(save_path + filtername + '.jpg', arr)
+    misc.imsave(save_path + filtername + '.png', arr)
 
 
 
