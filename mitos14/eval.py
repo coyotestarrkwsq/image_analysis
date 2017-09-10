@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+
+"""example usage: \
+data_to_tf.py -i /home/wangsq/data_set/mitos14/validation/ -o /home/wangsq/data_set/mitos14/result/ -g 1"""
 
 
 import numpy as np
@@ -9,6 +13,7 @@ import tensorflow as tf
 import zipfile
 import csv
 import math
+import argparse
 
 from io import StringIO
 from matplotlib import pyplot as plt
@@ -20,6 +25,7 @@ import scipy.misc as misc
 import glob
 
 from object_detection.utils import label_map_util
+from object_detection.utils import object_detection_evaluation
 
 
 
@@ -97,7 +103,7 @@ def visualize_boxes_and_labels_on_image_array(image,
                                               category_index,
                                               csvfile,
                                               use_normalized_coordinates=False,
-                                              min_score_thresh=.5,
+                                              min_score_thresh=-1,
                                               line_thickness=2):
 
   mitosis = 'mitosis'
@@ -205,89 +211,117 @@ def draw_bounding_box_on_image(image,
 #PATH_TO_TEST_IMAGES_DIR = 'test_images'
 #TEST_IMAGE_PATHS = [ os.path.join(PATH_TO_TEST_IMAGES_DIR, 'image{}.jpg'.format(i)) for i in range(1, 3) ]
 
-#TEST_IMAGE_PATHS = glob.glob('/home/wangsq/data_set/mitos14/validation/*jpg')
-
-#save_path = '/home/wangsq/data_set/mitos14/result/'
-
-TEST_IMAGE_PATHS = glob.glob('/home/wangsq/data_set/mitos14/01.jpg')
-
-save_path = '/home/wangsq/data_set/mitos14/16/'
-
-ground_truth = False
-
-with detection_graph.as_default():
-  with tf.Session(graph=detection_graph) as sess:
-    for image_path in TEST_IMAGE_PATHS:
-      image = Image.open(image_path)
-      
-      # the array based representation of the image will be used later in order to prepare the
-      # result image with boxes and labels on it.
-      image_np = load_image_into_numpy_array(image)
-      
-      # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-      image_np_expanded = np.expand_dims(image_np, axis=0)
-      
-      #image_tensor is a placeholder tensor
-      image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-      
-      # Each box represents a part of the image where a particular object was detected.
-      # np arr of box coords with dim (1, num of detections, 4)
-      boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-
-      # Each score represent how level of confidence for each of the objects.
-      # Score is shown on the result image, together with the class label.
-      # np arr of scores of dim (1, num of detections)
-      scores = detection_graph.get_tensor_by_name('detection_scores:0')
-            
-      # np arr of classes of dim (1, num of detections)
-      classes = detection_graph.get_tensor_by_name('detection_classes:0')
-
-      # np arr of num_detections of dim 1
-      num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-      
-      # Actual detection.
-      (boxes, scores, classes, num_detections) = sess.run(
-          [boxes, scores, classes, num_detections],
-          feed_dict={image_tensor: image_np_expanded})
-
-      
-      filepath, filename = os.path.split(image_path)
-      filtername, exts = os.path.splitext(filename)
-      
-      
-     
-      
-      if ground_truth:
-        mitosis = filepath + '/' + filtername + '_mitosis.csv'
-
-        with open(mitosis, 'rb') as csvfile:
-          mitosis = csv.reader(csvfile)
-          mitosis = list(mitosis)
-
-        for coord in mitosis:
-          x = int(coord[0])
-          y = int(coord[1])
-          draw_text_on_image_array(image_np, x, y, color = 'Yellow')
-
-      # Visualization of the results of a detection.
-      csvfile = save_path + filtername + '.csv'
-      with open(csvfile, 'w') as f:
-        visualize_boxes_and_labels_on_image_array(
-            image_np,
-            np.squeeze(boxes),
-            np.squeeze(classes).astype(np.int32),
-            np.squeeze(scores),
-            category_index,
-            csvfile = f,
-            use_normalized_coordinates=True,
-            line_thickness=4)
-
-      #plt.figure(figsize=IMAGE_SIZE)
-      #plt.imshow(image_np)
-      #plt.show()
-      #sys.exit()
-
-      misc.imsave(save_path + filename, image_np)
 
 
+def main(_):
+  TEST_IMAGE_PATHS = glob.glob(FLAGS.image_path + '*jpg')
 
+  save_path = FLAGS.save_path
+
+  ground_truth =int(FLAGS.g_truth)
+
+  with detection_graph.as_default():
+    with tf.Session(graph=detection_graph) as sess:
+      for im_id, image_path in enumerate(TEST_IMAGE_PATHS):
+        image = Image.open(image_path)
+        
+        # the array based representation of the image will be used later in order to prepare the
+        # result image with boxes and labels on it.
+        image_np = load_image_into_numpy_array(image)
+        
+        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+        image_np_expanded = np.expand_dims(image_np, axis=0)
+        
+        #image_tensor is a placeholder tensor
+        image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+        
+        # Each box represents a part of the image where a particular object was detected.
+        # np arr of box coords with dim (1, num of detections, 4)
+        boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+
+        # Each score represent how level of confidence for each of the objects.
+        # Score is shown on the result image, together with the class label.
+        # np arr of scores of dim (1, num of detections)
+        scores = detection_graph.get_tensor_by_name('detection_scores:0')
+              
+        # np arr of classes of dim (1, num of detections)
+        classes = detection_graph.get_tensor_by_name('detection_classes:0')
+
+        # np arr of num_detections of dim 1
+        num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+        
+        # Actual detection.
+        (boxes, scores, classes, num_detections) = sess.run(
+            [boxes, scores, classes, num_detections],
+            feed_dict={image_tensor: image_np_expanded})
+
+        
+        filepath, filename = os.path.split(image_path)
+        filtername, exts = os.path.splitext(filename)
+        
+        
+       
+        
+        if ground_truth:
+          mitosis = filepath + '/' + filtername + '_mitosis.csv'
+
+          with open(mitosis, 'rb') as csvfile:
+            mitosis = csv.reader(csvfile)
+            mitosis = list(mitosis)
+
+          for coord in mitosis:
+            x = int(coord[0])
+            y = int(coord[1])
+            draw_text_on_image_array(image_np, x, y, color = 'Yellow')
+
+        # Visualization of the results of a detection.
+        csvfile = save_path + filtername + '.csv'
+        with open(csvfile, 'w') as f:
+          visualize_boxes_and_labels_on_image_array(
+              image_np,
+              np.squeeze(boxes),
+              np.squeeze(classes).astype(np.int32),
+              np.squeeze(scores),
+              category_index,
+              csvfile = f,
+              use_normalized_coordinates=True,
+              line_thickness=4)
+
+        #plt.figure(figsize=IMAGE_SIZE)
+        #plt.imshow(image_np)
+        #plt.show()
+        #sys.exit()
+
+        misc.imsave(save_path + filename, image_np)
+
+
+
+
+if __name__ == '__main__':
+
+  parser = argparse.ArgumentParser(description = __doc__)
+
+
+  parser.add_argument(
+        '-i',
+        required = 'True',
+        dest = 'image_path',
+        help = 'path of image files'
+    )
+
+  parser.add_argument(
+        '-o',
+        required = 'True',
+        dest = 'save_path',
+        help = 'save path'
+    )
+
+  parser.add_argument(
+        '-g',
+        required = 'True',
+        dest = 'g_truth',
+        help = 'indicate if want to show ground truth, 1 or 0'
+    )
+
+  FLAGS = parser.parse_args()
+  main(sys.argv[1:])
