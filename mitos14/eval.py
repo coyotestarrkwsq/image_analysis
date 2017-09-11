@@ -26,7 +26,7 @@ import glob
 
 from object_detection.utils import label_map_util
 from object_detection.utils import object_detection_evaluation
-
+from sklearn.metrics import precision_recall_curve
 
 
 PATH_TO_CKPT = '/home/wangsq/data_set/mitos14/testrun2/output_inference_graph.pb/frozen_inference_graph.pb'
@@ -56,20 +56,20 @@ def load_image_into_numpy_array(image):
 
 def check_min_dim(coord):
   if coord < 0:
-    return 0
+    return float(0)
   else:
     return coord
 
 def check_max_dim(coord, dim):
   if coord > dim:
-    return dim
+    return float(dim)
   else:
     return coord
 
-def draw_text_on_image_array(image_np, x, y, color):
-  image_pil = Image.fromarray(np.uint8(image_np)).convert('RGB')
+def draw_text_on_image_array(image_np, image_pil, x, y, color):
   draw = ImageDraw.Draw(image_pil)
-  
+  width, height = image_pil.size
+
   try:
     font = ImageFont.truetype('arial.ttf', 24)
   except IOError:
@@ -77,7 +77,6 @@ def draw_text_on_image_array(image_np, x, y, color):
   msg = str(x) + ',' + str(y)
   draw.text((x,y), msg, font = font, fill=color)
 
-  width, height = image_pil.size
 
   xmin = x-32
   xmin = check_min_dim(xmin)
@@ -95,6 +94,20 @@ def draw_text_on_image_array(image_np, x, y, color):
 
   np.copyto(image_np, np.array(image_pil))
 
+def groundtruth_boxes(width, height, x, y):
+  xmin = (float(x)-32)
+  xmin = check_min_dim(xmin)
+ 
+  ymin = (float(y)-32)
+  ymin = check_min_dim(ymin)
+
+  xmax = (float(x)+32)
+  xmax = check_max_dim(xmax, width)
+
+  ymax = (float(y)+32)
+  ymax = check_max_dim(ymax, height)
+
+  return [ymin / height, xmin / width, ymax / height, xmax / width]
 
 def visualize_boxes_and_labels_on_image_array(image,
                                               boxes,
@@ -103,7 +116,7 @@ def visualize_boxes_and_labels_on_image_array(image,
                                               category_index,
                                               csvfile,
                                               use_normalized_coordinates=False,
-                                              min_score_thresh=-1,
+                                              min_score_thresh=0.5,
                                               line_thickness=2):
 
   mitosis = 'mitosis'
@@ -220,6 +233,8 @@ def main(_):
 
   ground_truth =int(FLAGS.g_truth)
 
+  evaluator = object_detection_evaluation.ObjectDetectionEvaluation(2)
+
   with detection_graph.as_default():
     with tf.Session(graph=detection_graph) as sess:
       for im_id, image_path in enumerate(TEST_IMAGE_PATHS):
@@ -246,7 +261,7 @@ def main(_):
               
         # np arr of classes of dim (1, num of detections)
         classes = detection_graph.get_tensor_by_name('detection_classes:0')
-
+        
         # np arr of num_detections of dim 1
         num_detections = detection_graph.get_tensor_by_name('num_detections:0')
         
@@ -256,32 +271,80 @@ def main(_):
             feed_dict={image_tensor: image_np_expanded})
 
         
+        
         filepath, filename = os.path.split(image_path)
         filtername, exts = os.path.splitext(filename)
         
-        
+        boxes = np.squeeze(boxes)
+    
+        classes = np.squeeze(classes).astype(np.int32)
+        scores = np.squeeze(scores)
        
         
         if ground_truth:
+
+          image_pil = Image.fromarray(np.uint8(image_np)).convert('RGB')
+          width, height = image_pil.size
+
           mitosis = filepath + '/' + filtername + '_mitosis.csv'
 
           with open(mitosis, 'rb') as csvfile:
             mitosis = csv.reader(csvfile)
             mitosis = list(mitosis)
+          if len(mitosis) > 0:  
+            gt_boxes = np.array([[0.0, 0.0, 0.0, 0.0] for _ in range(len(mitosis))])
+          else:
+            gt_boxes = np.zeros((0,4))
 
-          for coord in mitosis:
+          gt_labels = np.array([1 for _ in range(len(mitosis))])
+          
+          for i, coord in enumerate(mitosis):
             x = int(coord[0])
             y = int(coord[1])
-            draw_text_on_image_array(image_np, x, y, color = 'Yellow')
+            draw_text_on_image_array(image_np, image_pil, x, y, color = 'Yellow')
+            gt_boxes[i] = groundtruth_boxes(width, height, x, y)
+
+        
+
+          evaluator.add_single_ground_truth_image_info(
+          im_id, gt_boxes, gt_labels)
+
+          det_class = []
+          det_boxes = []
+          det_scores = []
+
+          for i, j in enumerate(classes):
+          
+            if j == 1:
+              det_class.append(1)
+              det_boxes.append(boxes[i].tolist())
+              det_scores.append(scores[i])
+
+
+          
+          
+          det_class = np.array(det_class)    
+
+          #det_boxes = map(normalize, det_boxes)
+
+          det_boxes = np.array(det_boxes)
+          
+
+          det_scores = np.array(det_scores)
+
+          evaluator.add_single_detected_image_info(
+            im_id, det_boxes,
+            det_scores,
+            det_class)
 
         # Visualization of the results of a detection.
         csvfile = save_path + filtername + '.csv'
         with open(csvfile, 'w') as f:
           visualize_boxes_and_labels_on_image_array(
               image_np,
-              np.squeeze(boxes),
-              np.squeeze(classes).astype(np.int32),
-              np.squeeze(scores),
+              boxes,
+              classes,
+              scores,
               category_index,
               csvfile = f,
               use_normalized_coordinates=True,
@@ -294,8 +357,25 @@ def main(_):
 
         misc.imsave(save_path + filename, image_np)
 
+  scores = np.concatenate(evaluator.scores_per_class[1])
+
+  tp_fp_labels = np.concatenate(evaluator.tp_fp_labels_per_class[1])
+  
+  precision, recall, thresholds = precision_recall_curve(tp_fp_labels, scores)
+
+  import matplotlib.pyplot as plt
 
 
+  plt.step(recall, precision, color='b', alpha=0.2,
+           where='post')
+  plt.fill_between(recall, precision, step='post', alpha=0.2,
+                   color='b')
+
+  plt.xlabel('Recall')
+  plt.ylabel('Precision')
+  plt.ylim([0.0, 1.05])
+  plt.xlim([0.0, 1.0])
+  plt.show()  
 
 if __name__ == '__main__':
 
