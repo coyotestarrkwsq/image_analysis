@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 """example usage: \
-data_to_tf.py -i /home/wangsq/data_set/mitos14/validation/ -o /home/wangsq/data_set/mitos14/result/ -g 1"""
+eval.py -i /home/wangsq/data_set/mitos14/validation/ -o /home/wangsq/data_set/mitos14/result/ \
+-m /home/wangsq/data_set/mitos14/testrun2/output_inference_graph.pb/frozen_inference_graph.pb \
+-l /home/wangsq/data_set/mitos14/testrun/data/mitos14_label_map.pbtxt -c 2 -g 1"""
 
 
 import numpy as np
@@ -29,23 +31,9 @@ from object_detection.utils import object_detection_evaluation
 from sklearn.metrics import precision_recall_curve
 
 
-PATH_TO_CKPT = '/home/wangsq/data_set/mitos14/testrun2/output_inference_graph.pb/frozen_inference_graph.pb'
-PATH_TO_LABELS = '/home/wangsq/data_set/mitos14/testrun/data/mitos14_label_map.pbtxt'
-NUM_CLASSES = 2
-
-detection_graph = tf.Graph()
-with detection_graph.as_default():
-  od_graph_def = tf.GraphDef()
-  with tf.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
-    serialized_graph = fid.read()
-    od_graph_def.ParseFromString(serialized_graph)
-    tf.import_graph_def(od_graph_def, name='')
 
 
 
-label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
-categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
-category_index = label_map_util.create_category_index(categories)
 
 
 def load_image_into_numpy_array(image):
@@ -116,7 +104,7 @@ def visualize_boxes_and_labels_on_image_array(image,
                                               category_index,
                                               csvfile,
                                               use_normalized_coordinates=False,
-                                              min_score_thresh=0.5,
+                                              min_score_thresh=-1,
                                               line_thickness=2):
 
   mitosis = 'mitosis'
@@ -234,6 +222,24 @@ def main(_):
   ground_truth =int(FLAGS.g_truth)
 
   evaluator = object_detection_evaluation.ObjectDetectionEvaluation(2)
+
+  PATH_TO_CKPT = FLAGS.model_path
+  PATH_TO_LABELS = FLAGS.label_path
+  NUM_CLASSES = int(FLAGS.no_class)
+
+  detection_graph = tf.Graph()
+  with detection_graph.as_default():
+    od_graph_def = tf.GraphDef()
+    with tf.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
+      serialized_graph = fid.read()
+      od_graph_def.ParseFromString(serialized_graph)
+      tf.import_graph_def(od_graph_def, name='')
+
+
+
+  label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
+  categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
+  category_index = label_map_util.create_category_index(categories)
 
   with detection_graph.as_default():
     with tf.Session(graph=detection_graph) as sess:
@@ -357,25 +363,49 @@ def main(_):
 
         misc.imsave(save_path + filename, image_np)
 
-  scores = np.concatenate(evaluator.scores_per_class[1])
+  if ground_truth:
+    scores = np.concatenate(evaluator.scores_per_class[1])
 
-  tp_fp_labels = np.concatenate(evaluator.tp_fp_labels_per_class[1])
-  
-  precision, recall, thresholds = precision_recall_curve(tp_fp_labels, scores)
+    tp_fp_labels = np.concatenate(evaluator.tp_fp_labels_per_class[1])
+    
+    precision, recall, thresholds = precision_recall_curve(tp_fp_labels, scores)
 
-  import matplotlib.pyplot as plt
+    precision = precision[:-1]
+    
+    recall = recall[:-1]
+
+    f1 = 2 * ((precision * recall) / (precision + recall))
+    import matplotlib.pyplot as plt
+
+    plt.plot(thresholds, precision, 'r')
+    plt.plot(thresholds, recall, 'b')
+    plt.plot(thresholds, f1, 'g')
+    #plt.axvline(0.5)
 
 
-  plt.step(recall, precision, color='b', alpha=0.2,
-           where='post')
-  plt.fill_between(recall, precision, step='post', alpha=0.2,
-                   color='b')
+    plt.xlabel('threshold')
+    plt.ylabel('recall / precision / f1 score')
+    plt.ylim([0.0, 1.0])
+    plt.xlim([0.0, 1.0])
+    plt.title('precision : red, recall : blue, f1-score : green')
+    plt.savefig(save_path + 'threhold_vs_pr.png')
 
-  plt.xlabel('Recall')
-  plt.ylabel('Precision')
-  plt.ylim([0.0, 1.05])
-  plt.xlim([0.0, 1.0])
-  plt.show()  
+    plt.clf()  
+
+
+
+    plt.step(recall, precision, color='b', alpha=0.2,
+             where='post')
+    plt.fill_between(recall, precision, step='post', alpha=0.2,
+                     color='b')
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.savefig(save_path + 'precision_recall.png')
+
+    
 
 if __name__ == '__main__':
 
@@ -394,6 +424,27 @@ if __name__ == '__main__':
         required = 'True',
         dest = 'save_path',
         help = 'save path'
+    )
+
+  parser.add_argument(
+        '-m',
+        required = 'True',
+        dest = 'model_path',
+        help = 'graph model path'
+    )
+
+  parser.add_argument(
+        '-c',
+        required = 'True',
+        dest = 'no_class',
+        help = 'number of classes'
+    )
+
+  parser.add_argument(
+        '-l',
+        required = 'True',
+        dest = 'label_path',
+        help = 'label path'
     )
 
   parser.add_argument(
